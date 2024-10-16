@@ -17,14 +17,10 @@ import random
 import math
 from collections import deque
 from enum import Enum
-from .llm import openai_chat_completion
+from llm import openai_chat_completion
 from pydantic import BaseModel
 import tqdm
-from .prompt_configs import (
-    llama_3_8b_prompt_config,
-    gpt_4o_prompt_config,
-    RefineResponse,
-)
+from prompt_configs import qwen_25_15b_prompt_config
 import numpy as np
 
 ROOT_UCT_SCORE = 10_000
@@ -66,7 +62,7 @@ class InitializeStrategy(Enum):
 
 class MCTSr(BaseModel):
     problem: str
-    max_rollouts: int
+    max_rollouts: int = 8
     exploration_constant: float = 1.0
     max_children: int = 2
     epsilon: float = 1e-10
@@ -76,7 +72,17 @@ class MCTSr(BaseModel):
     initialize_strategy: InitializeStrategy = InitializeStrategy.ZERO_SHOT
 
     root: MCTSNode = MCTSNode(answer="I don't know.")
-
+    '''
+    problem: 字符串，表示该类实例要解决的问题。
+    max_rollouts: 整数，表示MCTS算法中rollout（模拟）的最大次数。
+    exploration_constant: 浮点数，用于平衡探索和利用之间的权衡。
+    max_children: 整数，表示每个节点可以拥有的最大子节点数。
+    epsilon: 浮点数，用于防止除以零的错误。
+    reward_limit 和 excess_reward_penalty: 分别定义了奖励的上限和超出该上限时的惩罚。
+    selection_policy 和 initialize_strategy: 枚举类型，分别定义了节点选择和初始化的策略。
+    root: MCTSNode类型的对象，表示MCTS树的根节点。
+    critiques, refinements, rewards, selected_nodes: 分别用于记录批评、精炼、奖励和选中节点的列表。
+    '''
     # Logs
     critiques: list[str] = []
     refinements: list[str] = []
@@ -212,7 +218,7 @@ class MCTSr(BaseModel):
         print_tree(self.root)
 
 
-class MCTSrLlama38B(MCTSr):
+class MCTSrQen2515B(MCTSr):
     def zero_shot(self) -> str:
         response = openai_chat_completion(
             messages=[
@@ -225,8 +231,8 @@ class MCTSrLlama38B(MCTSr):
                     "content": f"<problem>\n{self.problem}\n</problem>",
                 },
             ],
-            model=llama_3_8b_prompt_config.model,
-            base_url=llama_3_8b_prompt_config.base_url,
+            model=qwen_25_15b_prompt_config.model,
+            base_url=qwen_25_15b_prompt_config.base_url,
             max_tokens=4000,
         )
         assert response.choices[0].message.content is not None
@@ -237,7 +243,7 @@ class MCTSrLlama38B(MCTSr):
             messages=[
                 {
                     "role": "system",
-                    "content": llama_3_8b_prompt_config.critic_system_prompt,
+                    "content": qwen_25_15b_prompt_config.critic_system_prompt,
                 },
                 {
                     "role": "user",
@@ -249,8 +255,8 @@ class MCTSrLlama38B(MCTSr):
                     ),
                 },
             ],
-            model=llama_3_8b_prompt_config.model,
-            base_url=llama_3_8b_prompt_config.base_url,
+            model=qwen_25_15b_prompt_config.model,
+            base_url=qwen_25_15b_prompt_config.base_url,
             max_tokens=4000,
         )
         critique = critique_response.choices[0].message.content
@@ -261,7 +267,7 @@ class MCTSrLlama38B(MCTSr):
             messages=[
                 {
                     "role": "system",
-                    "content": llama_3_8b_prompt_config.refine_system_prompt,
+                    "content": qwen_25_15b_prompt_config.refine_system_prompt,
                 },
                 {
                     "role": "user",
@@ -274,8 +280,8 @@ class MCTSrLlama38B(MCTSr):
                     ),
                 },
             ],
-            model=llama_3_8b_prompt_config.model,
-            base_url=llama_3_8b_prompt_config.base_url,
+            model=qwen_25_15b_prompt_config.model,
+            base_url=qwen_25_15b_prompt_config.base_url,
             max_tokens=4000,
         )
         refined_answer = refined_answer_response.choices[0].message.content
@@ -288,7 +294,7 @@ class MCTSrLlama38B(MCTSr):
         messages = [
             {
                 "role": "system",
-                "content": llama_3_8b_prompt_config.evaluate_system_prompt,
+                "content": qwen_25_15b_prompt_config.evaluate_system_prompt,
             },
             {
                 "role": "user",
@@ -304,8 +310,8 @@ class MCTSrLlama38B(MCTSr):
             try:
                 response = openai_chat_completion(
                     messages=messages,
-                    model=llama_3_8b_prompt_config.model,
-                    base_url=llama_3_8b_prompt_config.base_url,
+                    model=qwen_25_15b_prompt_config.model,
+                    base_url=qwen_25_15b_prompt_config.base_url,
                     max_tokens=4000,
                 )
                 assert response.choices[0].message.content is not None
@@ -327,120 +333,120 @@ class MCTSrLlama38B(MCTSr):
                     raise
 
 
-class MCTSrGPT4o(MCTSr):
-    def zero_shot(self) -> str:
-        response = openai_chat_completion(
-            messages=[
-                {
-                    "role": "system",
-                    "content": "The user will provide a problem. Solve the problem. Think step by step.",
-                },
-                {
-                    "role": "user",
-                    "content": f"<problem>\n{self.problem}\n</problem>",
-                },
-            ],
-            model=gpt_4o_prompt_config.model,
-            max_tokens=4000,
-        )
-        assert response.choices[0].message.content is not None
-        return response.choices[0].message.content
+# class MCTSrGPT4o(MCTSr):
+#     def zero_shot(self) -> str:
+#         response = openai_chat_completion(
+#             messages=[
+#                 {
+#                     "role": "system",
+#                     "content": "The user will provide a problem. Solve the problem. Think step by step.",
+#                 },
+#                 {
+#                     "role": "user",
+#                     "content": f"<problem>\n{self.problem}\n</problem>",
+#                 },
+#             ],
+#             model=gpt_4o_prompt_config.model,
+#             max_tokens=4000,
+#         )
+#         assert response.choices[0].message.content is not None
+#         return response.choices[0].message.content
 
-    def self_refine(self, node: MCTSNode) -> MCTSNode:
-        critique_response = openai_chat_completion(
-            messages=[
-                {
-                    "role": "system",
-                    "content": gpt_4o_prompt_config.critic_system_prompt,
-                },
-                {
-                    "role": "user",
-                    "content": "\n\n".join(
-                        [
-                            f"<problem>\n{self.problem}\n</problem>",
-                            f"<current_answer>\n{node.answer}\n</current_answer>",
-                        ]
-                    ),
-                },
-            ],
-            model=gpt_4o_prompt_config.model,
-            max_tokens=4000,
-        )
-        critique = critique_response.choices[0].message.content
-        assert critique is not None
-        self.critiques.append(critique)
+#     def self_refine(self, node: MCTSNode) -> MCTSNode:
+#         critique_response = openai_chat_completion(
+#             messages=[
+#                 {
+#                     "role": "system",
+#                     "content": gpt_4o_prompt_config.critic_system_prompt,
+#                 },
+#                 {
+#                     "role": "user",
+#                     "content": "\n\n".join(
+#                         [
+#                             f"<problem>\n{self.problem}\n</problem>",
+#                             f"<current_answer>\n{node.answer}\n</current_answer>",
+#                         ]
+#                     ),
+#                 },
+#             ],
+#             model=gpt_4o_prompt_config.model,
+#             max_tokens=4000,
+#         )
+#         critique = critique_response.choices[0].message.content
+#         assert critique is not None
+#         self.critiques.append(critique)
 
-        refined_answer_response = openai_chat_completion(
-            messages=[
-                {
-                    "role": "system",
-                    "content": gpt_4o_prompt_config.refine_system_prompt,
-                },
-                {
-                    "role": "user",
-                    "content": "\n\n".join(
-                        [
-                            f"<problem>\n{self.problem}\n</problem>",
-                            f"<current_answer>\n{node.answer}\n</current_answer>",
-                            f"<critique>\n{critique}\n</critique>",
-                        ]
-                    ),
-                },
-            ],
-            model=gpt_4o_prompt_config.model,
-            max_tokens=4000,
-            response_format={"type": "json_object"},
-        )
-        refined_answer = RefineResponse.model_validate_json(
-            refined_answer_response.choices[0].message.content
-        )
-        self.refinements.append(refined_answer)
+#         refined_answer_response = openai_chat_completion(
+#             messages=[
+#                 {
+#                     "role": "system",
+#                     "content": gpt_4o_prompt_config.refine_system_prompt,
+#                 },
+#                 {
+#                     "role": "user",
+#                     "content": "\n\n".join(
+#                         [
+#                             f"<problem>\n{self.problem}\n</problem>",
+#                             f"<current_answer>\n{node.answer}\n</current_answer>",
+#                             f"<critique>\n{critique}\n</critique>",
+#                         ]
+#                     ),
+#                 },
+#             ],
+#             model=gpt_4o_prompt_config.model,
+#             max_tokens=4000,
+#             response_format={"type": "json_object"},
+#         )
+#         refined_answer = RefineResponse.model_validate_json(
+#             refined_answer_response.choices[0].message.content
+#         )
+#         self.refinements.append(refined_answer)
 
-        return MCTSNode(
-            answer=f"# Thought {refined_answer.thought}\n\n# Answer\n{refined_answer.answer}",
-            parent=node,
-        )
+#         return MCTSNode(
+#             answer=f"# Thought {refined_answer.thought}\n\n# Answer\n{refined_answer.answer}",
+#             parent=node,
+#         )
 
-    def _evaluate_answer(self, node: MCTSNode) -> int:
-        messages = [
-            {
-                "role": "system",
-                "content": gpt_4o_prompt_config.evaluate_system_prompt,
-            },
-            {
-                "role": "user",
-                "content": "\n\n".join(
-                    [
-                        f"<problem>\n{self.problem}\n</problem>",
-                        f"<answer>\n{node.answer}\n</answer>",
-                    ]
-                ),
-            },
-        ]
-        for attempt in range(3):
-            try:
-                response = openai_chat_completion(
-                    messages=messages,
-                    model=gpt_4o_prompt_config.model,
-                    max_tokens=4000,
-                )
-                assert response.choices[0].message.content is not None
-                return int(response.choices[0].message.content)
-            except ValueError:
-                messages.extend(
-                    [
-                        {
-                            "role": "assistant",
-                            "content": response.choices[0].message.content,
-                        },
-                        {
-                            "role": "user",
-                            "content": "Failed to parse reward as an integer.",
-                        },
-                    ]
-                )
-                if attempt == 2:
-                    raise
+#     def _evaluate_answer(self, node: MCTSNode) -> int:
+#         messages = [
+#             {
+#                 "role": "system",
+#                 "content": gpt_4o_prompt_config.evaluate_system_prompt,
+#             },
+#             {
+#                 "role": "user",
+#                 "content": "\n\n".join(
+#                     [
+#                         f"<problem>\n{self.problem}\n</problem>",
+#                         f"<answer>\n{node.answer}\n</answer>",
+#                     ]
+#                 ),
+#             },
+#         ]
+#         for attempt in range(3):
+#             try:
+#                 response = openai_chat_completion(
+#                     messages=messages,
+#                     model=gpt_4o_prompt_config.model,
+#                     max_tokens=4000,
+#                 )
+#                 assert response.choices[0].message.content is not None
+#                 return int(response.choices[0].message.content)
+#             except ValueError:
+#                 messages.extend(
+#                     [
+#                         {
+#                             "role": "assistant",
+#                             "content": response.choices[0].message.content,
+#                         },
+#                         {
+#                             "role": "user",
+#                             "content": "Failed to parse reward as an integer.",
+#                         },
+#                     ]
+#                 )
+#                 if attempt == 2:
+#                     raise
 
 
 def print_tree(node: MCTSNode | None, level: int = 0):
