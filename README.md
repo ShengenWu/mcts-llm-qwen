@@ -3,17 +3,27 @@ This project is a branch of [repo](https://github.com/BrendanGraham14/mcts-llm).
 
 ## Useful Links
 
-Paper Link: [Accessing GPT-4 level Mathematical Olympiad Solutions via Monte Carlo Tree Self-refine with LLaMa-3 8B](https://arxiv.org/abs/2406.07394) by Zhang, et al.
+**Paper Link**: [Accessing GPT-4 level Mathematical Olympiad Solutions via Monte Carlo Tree Self-refine with LLaMa-3 8B](https://arxiv.org/abs/2406.07394) by Zhang, et al.
 
-Previous Project: [mcts-llm](https://github.com/BrendanGraham14/mcts-llm) by BrendanGraham14. This project using Fireworks.ai and OpendAI API to deploy LLaMa-3 8B and GPT-4o.
+**Previous Project**: [GitHub Repo mcts-llm](https://github.com/BrendanGraham14/mcts-llm) by BrendanGraham14. This project using Fireworks.ai and OpendAI API to deploy LLaMa-3 8B and GPT-4o.
+
+**Ollama Qwen2.5 Library**: The supported Qwen-2.5 Model list [here](https://ollama.com/library/qwen2.5).
 
 ## Usage
 We need ollama-python to deploy Qwen2.5 locally.
-```
+
+```zsh
 pip install ollama
 ```
-Then, you should design the main.py file personally. In this file, it must contain the process of activating the client and load your datasets. Here is an example.
+
+Before running the code, you should start Ollama and Qwen2.5 locally first. Here is an Qwen2.5-1.5B example.
+```zsh
+ollama run qwen2.5:1.5b
 ```
+
+Then, you should design the main.py file personally. In this file, it must contain the process of activating the client and load your datasets. Here is an example.
+
+```python
 import mctsr
 # from utils import load_dataframe
 from utils import load_aime
@@ -44,3 +54,6 @@ if __name__ == "__main__":
     print(f"Results save to {output_path}") 
 ```
 
+In this project, we use `Qwen2.5 1.5B`. If you want to change the model, please modify `model="Qwen2.5:1.5B"` in `prompt_configs.py`.
+
+> **Note**: OpenAI compatibility is experimental and is subject to major adjustments including breaking changes.
