@@ -18,7 +18,7 @@ def load_dataframe(file_path):
         return None
     
 def load_aime(year: int | None = None) -> pd.DataFrame:
-    df = pd.read_csv("/Users/shanewu/Code_Project/MathBlackBox/mcts-llm/datasets/AIME_Dataset_1983_2024.csv")
+    df = pd.read_csv("datasets/AIME_Dataset_1983_2024.csv")
     df.rename(columns={"Question": "question", "Answer": "answer"}, inplace=True)
     if year is not None:
         df = df[df["Year"] == year]
